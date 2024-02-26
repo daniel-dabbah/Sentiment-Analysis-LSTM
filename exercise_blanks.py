@@ -125,7 +125,10 @@ def get_one_hot(size, ind):
     :param ind: the entry index to turn to 1
     :return: numpy ndarray which represents the one-hot vector
     """
-    return
+    result = np.zeros(size)
+    result[ind] = 1
+
+    return result
 
 
 def average_one_hots(sent, word_to_ind):
@@ -136,7 +139,13 @@ def average_one_hots(sent, word_to_ind):
     :param word_to_ind: a mapping between words to indices
     :return:
     """
-    return
+    size = len(word_to_ind)
+
+    result = np.zeros(size, dtype=int)
+    for word in sent.text:
+        result[word_to_ind[word]] += 1
+
+    return result / len(sent.text)
 
 
 def get_word_to_ind(words_list):
@@ -146,7 +155,8 @@ def get_word_to_ind(words_list):
     :param words_list: a list of words
     :return: the dictionary mapping words to the index
     """
-    return
+
+    return {word: i for i, word in enumerate(words_list)}
 
 
 def sentence_to_embedding(sent, word_to_vec, seq_len, embedding_dim=300):
@@ -205,7 +215,8 @@ class DataManager():
         """
 
         # load the dataset
-        self.sentiment_dataset = data_loader.SentimentTreeBank(dataset_path, split_words=True)
+        self.sentiment_dataset = data_loader.SentimentTreeBank(
+            dataset_path, split_words=True)
         # map data splits to sentences lists
         self.sentences = {}
         if use_sub_phrases:
@@ -220,7 +231,8 @@ class DataManager():
         words_list = list(self.sentiment_dataset.get_word_counts().keys())
         if data_type == ONEHOT_AVERAGE:
             self.sent_func = average_one_hots
-            self.sent_func_kwargs = {"word_to_ind": get_word_to_ind(words_list)}
+            self.sent_func_kwargs = {
+                "word_to_ind": get_word_to_ind(words_list)}
         elif data_type == W2V_SEQUENCE:
             self.sent_func = sentence_to_embedding
 
@@ -264,14 +276,13 @@ class DataManager():
         return self.torch_datasets[TRAIN][0][0].shape
 
 
-
-
 # ------------------------------------ Models ----------------------------------------------------
 
 class LSTM(nn.Module):
     """
     An LSTM for sentiment analysis with architecture as described in the exercise description.
     """
+
     def __init__(self, embedding_dim, hidden_dim, n_layers, dropout):
         return
 
@@ -286,14 +297,18 @@ class LogLinear(nn.Module):
     """
     general class for the log-linear models for sentiment analysis.
     """
+
     def __init__(self, embedding_dim):
-        return
+        super().__init__()
+
+        self.linear = nn.Linear(embedding_dim, 1, dtype=torch.float64)
+        self.sigmoid = torch.nn.Sigmoid()
 
     def forward(self, x):
-        return
+        return self.linear(x)
 
     def predict(self, x):
-        return
+        return self.sigmoid(self.forward(x))
 
 
 # ------------------------- training functions -------------
@@ -303,12 +318,15 @@ def binary_accuracy(preds, y):
     """
     This method returns tha accuracy of the predictions, relative to the labels.
     You can choose whether to use numpy arrays or tensors here.
+    the function assumes the preds are after the sigmoid function and
+    therefore between 0-1.
     :param preds: a vector of predictions
     :param y: a vector of true labels
     :return: scalar value - (<number of accurate predictions> / <number of examples>)
     """
-
-    return
+    k = torch.round(preds) == y
+    # print(k.shape)
+    return torch.sum(torch.round(preds) == y) / len(y)
 
 
 def train_epoch(model, data_iterator, optimizer, criterion):
@@ -321,7 +339,21 @@ def train_epoch(model, data_iterator, optimizer, criterion):
     :param criterion: the criterion object for the training process.
     """
 
-    return
+    for xb, yb in data_iterator:
+
+        # calculate the gradients:
+        preds = model(xb)
+
+        loss = criterion(preds, yb.reshape(preds.shape))
+        loss.backward()
+
+        # update the weights:
+        optimizer.step()
+        optimizer.zero_grad()
+
+        acc = binary_accuracy(torch.sigmoid(preds), yb.reshape(preds.shape))
+
+        print(acc)
 
 
 def evaluate(model, data_iterator, criterion):
@@ -358,7 +390,15 @@ def train_model(model, data_manager, n_epochs, lr, weight_decay=0.):
     :param lr: learning rate to be used for optimization
     :param weight_decay: parameter for l2 regularization
     """
-    return
+    # TODO: change most of this function
+
+    optimizer = optim.Adam(model.parameters(), lr=lr,
+                           weight_decay=weight_decay)
+
+    criterion = nn.BCEWithLogitsLoss()
+    for a in range(n_epochs):
+        train_epoch(model, data_manager.get_torch_iterator(),
+                    optimizer, criterion)
 
 
 def train_log_linear_with_one_hot():
@@ -384,6 +424,22 @@ def train_lstm_with_w2v():
 
 
 if __name__ == '__main__':
+    # TODO: change to train on the GPU
+
+    dataset = data_loader.SentimentTreeBank()
+
     train_log_linear_with_one_hot()
+
+    dm = DataManager(batch_size=50)
+
+    train_iter = iter(dm.get_torch_iterator(data_subset=TRAIN))
+
+    b = next(train_iter)
+    # TODO: check dtype, and check dimension for the functions.
+    dm.get_input_shape()[0]
+    model = LogLinear(dm.get_input_shape()[0])
+    train_model(model=model, data_manager=dm,
+                n_epochs=5, lr=1e-3, weight_decay=0.0)
+
     # train_log_linear_with_w2v()
     # train_lstm_with_w2v()
