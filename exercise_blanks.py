@@ -9,6 +9,7 @@ import operator
 import data_loader
 import pickle
 import tqdm
+import matplotlib.pyplot as plt
 
 # ------------------------------------------- Constants ----------------------------------------
 
@@ -378,7 +379,9 @@ def get_predictions_for_data(model, data_iter):
     :param data_iter: torch iterator as given by the DataManager
     :return:
     """
-    return
+
+    with torch.no_grad():
+        return torch.cat([model.predict(xb).squeeze() for xb, _ in data_iter])
 
 
 def train_model(model, data_manager, n_epochs, lr, weight_decay=0.):
@@ -411,15 +414,40 @@ def train_model(model, data_manager, n_epochs, lr, weight_decay=0.):
         val_losses[i], val_accs[i] = evaluate(model, data_manager.get_torch_iterator(
             data_subset=VAL), criterion)
 
-    print(train_accs)
-    print(train_losses)
+    return train_losses, train_accs
+
+    # print(train_accs)
+    # print(train_losses)
 
 
 def train_log_linear_with_one_hot():
     """
     Here comes your code for training and evaluation of the log linear model with one hot representation.
     """
-    return
+    dm = DataManager(data_type=ONEHOT_AVERAGE, batch_size=50)
+    model = LogLinear(dm.get_input_shape()[0])
+    train_losses, train_accs = train_model(model=model, data_manager=dm,
+                                           n_epochs=20, lr=1e-3, weight_decay=0.0)
+
+    x_values = list(range(1, 21))
+
+    # Plotting
+    plt.plot(x_values, train_accs, label='Train Accuracy', marker='o')
+    plt.plot(x_values, train_losses, label='Train Losses', marker='x')
+
+    # Add labels and title
+    plt.xlabel('Epoch')
+    plt.ylabel('Values')
+    plt.title('Training Results')
+
+    # Add legend
+    plt.legend()
+
+    # Show the plot
+    plt.show()
+
+    # get_predictions_for_data(model, dm.get_torch_iterator(
+    #     data_subset=TEST))
 
 
 def train_log_linear_with_w2v():
@@ -440,21 +468,9 @@ def train_lstm_with_w2v():
 if __name__ == '__main__':
     # TODO: change to train on the GPU
 
-    dataset = data_loader.SentimentTreeBank()
+    # dataset = data_loader.SentimentTreeBank()
 
     train_log_linear_with_one_hot()
-
-    dm = DataManager(batch_size=50)
-
-    train_iter = iter(dm.get_torch_iterator(data_subset=TRAIN))
-
-    b = next(train_iter)
-    # TODO: check dimension for the functions.
-    dm.get_input_shape()[0]
-    model = LogLinear(dm.get_input_shape()[0])
-
-    train_model(model=model, data_manager=dm,
-                n_epochs=10, lr=1e-3, weight_decay=0.0)
 
     # train_log_linear_with_w2v()
     # train_lstm_with_w2v()
