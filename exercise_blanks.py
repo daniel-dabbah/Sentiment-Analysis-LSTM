@@ -414,40 +414,55 @@ def train_model(model, data_manager, n_epochs, lr, weight_decay=0.):
         val_losses[i], val_accs[i] = evaluate(model, data_manager.get_torch_iterator(
             data_subset=VAL), criterion)
 
-    return train_losses, train_accs
+    return train_losses, train_accs, val_losses, val_accs
 
     # print(train_accs)
     # print(train_losses)
 
 
-def train_log_linear_with_one_hot():
+def train_log_linear_with_one_hot(batch_size, n_epochs, lr, weight_decay=0.):
     """
     Here comes your code for training and evaluation of the log linear model with one hot representation.
     """
-    dm = DataManager(data_type=ONEHOT_AVERAGE, batch_size=50)
+    # Train the model:
+    dm = DataManager(data_type=ONEHOT_AVERAGE, batch_size=batch_size)
     model = LogLinear(dm.get_input_shape()[0])
-    train_losses, train_accs = train_model(model=model, data_manager=dm,
-                                           n_epochs=20, lr=1e-3, weight_decay=0.0)
+    train_losses, train_accs, val_losses, val_accs = train_model(model=model, data_manager=dm,
+                                                                 n_epochs=n_epochs, lr=lr, weight_decay=weight_decay)
 
-    x_values = list(range(1, 21))
+    # Plot Train and Validation results:
+    data_sets = ("Train", "Validation")
+    losses = (train_losses, val_losses)
+    accs = (train_accs, val_accs)
 
-    # Plotting
-    plt.plot(x_values, train_accs, label='Train Accuracy', marker='o')
-    plt.plot(x_values, train_losses, label='Train Losses', marker='x')
+    fig, axs = plt.subplots(1, 2, figsize=(12, 6),  sharey=True)
 
-    # Add labels and title
-    plt.xlabel('Epoch')
-    plt.ylabel('Values')
-    plt.title('Training Results')
+    for loss, acc, ds_name, ax in zip(losses, accs, data_sets, axs):
+        plot_loss_acc(loss, acc, ds_name, ax)
 
-    # Add legend
-    plt.legend()
+    # Save the model:
+    save_pickle(model, "log_linear_one_hot_model.pkl")
+    return model
 
-    # Show the plot
-    plt.show()
+    # Print Test results:
 
-    # get_predictions_for_data(model, dm.get_torch_iterator(
-    #     data_subset=TEST))
+
+def plot_loss_acc(losses, accs, data_set, ax=None):
+
+    if ax is None:
+        ax = plt.subplots([1])
+    x_values = list(range(1, len(losses)+1))
+
+    ax.plot(x_values, losses,
+            label=f"{data_set} Losses", marker='x')
+    ax.plot(x_values, accs,
+            label=f"{data_set} Accuracy", marker='o')
+
+    ax.set_xlabel('Epochs')
+    ax.set_ylabel('Values')
+    ax.set_title(f"{data_set} Set Results")
+
+    ax.legend()
 
 
 def train_log_linear_with_w2v():
@@ -470,7 +485,12 @@ if __name__ == '__main__':
 
     # dataset = data_loader.SentimentTreeBank()
 
-    train_log_linear_with_one_hot()
+    model = train_log_linear_with_one_hot(
+        batch_size=64, n_epochs=20, lr=0.01, weight_decay=0.001)
+
+    dm = DataManager(data_type=ONEHOT_AVERAGE, batch_size=64)
+    test_predics = get_predictions_for_data(
+        model, dm.get_torch_iterator(data_subset=TEST))
 
     # train_log_linear_with_w2v()
     # train_lstm_with_w2v()
