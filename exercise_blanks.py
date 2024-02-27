@@ -349,22 +349,6 @@ def train_epoch(model, data_iterator, optimizer, criterion):
         optimizer.step()
         optimizer.zero_grad()
 
-        acc = binary_accuracy(torch.sigmoid(preds), yb)
-
-    with torch.no_grad():
-
-        losses, accs = zip(*[(criterion(model(xb).squeeze(), yb),
-                              binary_accuracy(torch.sigmoid(model(xb).squeeze()), yb))
-                             for xb, yb in data_iterator])
-
-        loss = round(torch.stack(losses).mean().item(), 6)
-        acc = round(torch.stack(accs).mean().item(), 6)
-
-        print(f"{loss} ,  {acc}")
-        return loss, acc
-
-    # print(acc)
-
 
 def evaluate(model, data_iterator, criterion):
     """
@@ -374,7 +358,14 @@ def evaluate(model, data_iterator, criterion):
     :param criterion: the loss criterion used for evaluation
     :return: tuple of (average loss over all examples, average accuracy over all examples)
     """
-    return
+    with torch.no_grad():
+
+        losses, accs = zip(*[(criterion(model(xb).squeeze(), yb),
+                              binary_accuracy(torch.sigmoid(model(xb).squeeze()), yb))
+                             for xb, yb in data_iterator])
+
+        return round(torch.stack(losses).mean().item(), 6), \
+            round(torch.stack(accs).mean().item(), 6)
 
 
 def get_predictions_for_data(model, data_iter):
@@ -400,15 +391,28 @@ def train_model(model, data_manager, n_epochs, lr, weight_decay=0.):
     :param lr: learning rate to be used for optimization
     :param weight_decay: parameter for l2 regularization
     """
-    # TODO: change most of this function
 
     optimizer = optim.Adam(model.parameters(), lr=lr,
                            weight_decay=weight_decay)
 
     criterion = nn.BCEWithLogitsLoss()
-    for a in range(n_epochs):
-        train_epoch(model, data_manager.get_torch_iterator(),
-                    optimizer, criterion)
+
+    train_losses, train_accs = torch.Tensor(n_epochs), torch.Tensor(n_epochs)
+    val_losses, val_accs = torch.Tensor(n_epochs), torch.Tensor(n_epochs)
+
+    for i in range(n_epochs):
+
+        train_epoch(model, data_manager.get_torch_iterator(
+            data_subset=TRAIN), optimizer, criterion)
+
+        train_losses[i], train_accs[i] = evaluate(model, data_manager.get_torch_iterator(
+            data_subset=TRAIN), criterion)
+
+        val_losses[i], val_accs[i] = evaluate(model, data_manager.get_torch_iterator(
+            data_subset=VAL), criterion)
+
+    print(train_accs)
+    print(train_losses)
 
 
 def train_log_linear_with_one_hot():
@@ -450,7 +454,7 @@ if __name__ == '__main__':
     model = LogLinear(dm.get_input_shape()[0])
 
     train_model(model=model, data_manager=dm,
-                n_epochs=1, lr=1e-3, weight_decay=0.0)
+                n_epochs=10, lr=1e-3, weight_decay=0.0)
 
     # train_log_linear_with_w2v()
     # train_lstm_with_w2v()
