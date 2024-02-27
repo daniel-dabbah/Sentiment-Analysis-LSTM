@@ -141,7 +141,7 @@ def average_one_hots(sent, word_to_ind):
     """
     size = len(word_to_ind)
 
-    result = np.zeros(size, dtype=int)
+    result = torch.zeros(size)
     for word in sent.text:
         result[word_to_ind[word]] += 1
 
@@ -301,7 +301,7 @@ class LogLinear(nn.Module):
     def __init__(self, embedding_dim):
         super().__init__()
 
-        self.linear = nn.Linear(embedding_dim, 1, dtype=torch.float64)
+        self.linear = nn.Linear(embedding_dim, 1)
         self.sigmoid = torch.nn.Sigmoid()
 
     def forward(self, x):
@@ -438,8 +438,9 @@ if __name__ == '__main__':
     # TODO: check dtype, and check dimension for the functions.
     dm.get_input_shape()[0]
     model = LogLinear(dm.get_input_shape()[0])
+
     train_model(model=model, data_manager=dm,
-                n_epochs=5, lr=1e-3, weight_decay=0.0)
+                n_epochs=1, lr=1e-3, weight_decay=0.0)
 
     # train_log_linear_with_w2v()
     # train_lstm_with_w2v()
