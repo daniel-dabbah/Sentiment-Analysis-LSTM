@@ -324,8 +324,7 @@ def binary_accuracy(preds, y):
     :param y: a vector of true labels
     :return: scalar value - (<number of accurate predictions> / <number of examples>)
     """
-    k = torch.round(preds) == y
-    # print(k.shape)
+
     return torch.sum(torch.round(preds) == y) / len(y)
 
 
@@ -342,16 +341,16 @@ def train_epoch(model, data_iterator, optimizer, criterion):
     for xb, yb in data_iterator:
 
         # calculate the gradients:
-        preds = model(xb)
+        preds = model(xb).squeeze()
 
-        loss = criterion(preds, yb.reshape(preds.shape))
+        loss = criterion(preds, yb)
         loss.backward()
 
         # update the weights:
         optimizer.step()
         optimizer.zero_grad()
 
-        acc = binary_accuracy(torch.sigmoid(preds), yb.reshape(preds.shape))
+        acc = binary_accuracy(torch.sigmoid(preds), yb)
 
         print(acc)
 
@@ -435,7 +434,7 @@ if __name__ == '__main__':
     train_iter = iter(dm.get_torch_iterator(data_subset=TRAIN))
 
     b = next(train_iter)
-    # TODO: check dtype, and check dimension for the functions.
+    # TODO: check dimension for the functions.
     dm.get_input_shape()[0]
     model = LogLinear(dm.get_input_shape()[0])
 
