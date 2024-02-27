@@ -342,7 +342,6 @@ def train_epoch(model, data_iterator, optimizer, criterion):
 
         # calculate the gradients:
         preds = model(xb).squeeze()
-
         loss = criterion(preds, yb)
         loss.backward()
 
@@ -352,7 +351,19 @@ def train_epoch(model, data_iterator, optimizer, criterion):
 
         acc = binary_accuracy(torch.sigmoid(preds), yb)
 
-        print(acc)
+    with torch.no_grad():
+
+        losses, accs = zip(*[(criterion(model(xb).squeeze(), yb),
+                              binary_accuracy(torch.sigmoid(model(xb).squeeze()), yb))
+                             for xb, yb in data_iterator])
+
+        loss = round(torch.stack(losses).mean().item(), 6)
+        acc = round(torch.stack(accs).mean().item(), 6)
+
+        print(f"{loss} ,  {acc}")
+        return loss, acc
+
+    # print(acc)
 
 
 def evaluate(model, data_iterator, criterion):
