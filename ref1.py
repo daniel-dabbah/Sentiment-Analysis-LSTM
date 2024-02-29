@@ -1,3 +1,13 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+Created on Thu Feb 29 07:42:49 2024
+
+@author: danieldabbah
+"""
+import time
+
+import matplotlib.pyplot as plt
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -9,7 +19,6 @@ import operator
 import data_loader
 import pickle
 import tqdm
-import matplotlib.pyplot as plt
 
 # ------------------------------------------- Constants ----------------------------------------
 
@@ -74,7 +83,47 @@ def load(model, path, optimizer):
     return model, optimizer, epoch
 
 
+class PerformenceAnalysis:
+    def __init__(self, title):
+        self.title = title
+        self.train_loss, self.train_acc, self.val_loss, self.val_acc = [], [], [], []
+
+    def append_train(self, train_loss, train_acc):
+        self.train_loss.append(train_loss)
+        self.train_acc.append(train_acc)
+
+    def append_validation(self, val_loss, val_acc):
+        self.val_loss.append(val_loss)
+        self.val_acc.append(val_acc)
+
+    def get_train_loss(self):
+        return self.train_loss
+
+    def get_train_acc(self):
+        return self.train_acc
+
+    def get_val_loss(self):
+        return self.val_loss
+
+    def get_val_acc(self):
+        return self.val_acc
+
+    def plot_accuracy(self):
+        plt.title("%s Accuracy" % self.title)
+        plt.plot(self.train_acc, label='Training')
+        plt.plot(self.val_acc, label='Validation')
+        plt.legend()
+        plt.show()
+
+    def plot_loss(self):
+        plt.title("%s Loss" % self.title)
+        plt.plot(self.train_loss, label='Training')
+        plt.plot(self.val_loss, label='Validation')
+        plt.legend()
+        plt.show()
+
 # ------------------------------------------ Data utilities ----------------------------------------
+
 
 def load_word2vec():
     """ Load Word2Vec Vectors
@@ -89,7 +138,7 @@ def load_word2vec():
     return wv_from_bin
 
 
-def create_or_load_slim_w2v(words_list, cache_w2v=False):
+def create_or_load_slim_w2v(words_list, cache_w2v=True):
     """
     returns word2vec dict only for words which appear in the dataset.
     :param words_list: list of words to use for the w2v dict
@@ -116,7 +165,14 @@ def get_w2v_average(sent, word_to_vec, embedding_dim):
     :param embedding_dim: the dimension of the word embedding vectors
     :return The average embedding vector as numpy ndarray.
     """
-    return
+    avg = np.zeros(embedding_dim)
+    text = sent.text
+    for word in text:
+        try:
+            avg += word_to_vec[word]
+        except KeyError:
+            continue
+    return avg / len(text)
 
 
 def get_one_hot(size, ind):
@@ -126,10 +182,9 @@ def get_one_hot(size, ind):
     :param ind: the entry index to turn to 1
     :return: numpy ndarray which represents the one-hot vector
     """
-    result = torch.zeros(size)
-    result[ind] = 1
-
-    return result
+    vec = np.zeros(size)
+    vec[ind] = 1
+    return vec
 
 
 def average_one_hots(sent, word_to_ind):
@@ -141,12 +196,11 @@ def average_one_hots(sent, word_to_ind):
     :return:
     """
     size = len(word_to_ind)
-
-    result = torch.zeros(size)
-    for word in sent.text:
-        result[word_to_ind[word]] += 1
-
-    return result / len(sent.text)
+    avg = np.zeros(size)
+    text = sent.text
+    for word in text:
+        avg[word_to_ind[word]] += 1
+    return avg / len(text)
 
 
 def get_word_to_ind(words_list):
@@ -156,8 +210,8 @@ def get_word_to_ind(words_list):
     :param words_list: a list of words
     :return: the dictionary mapping words to the index
     """
-
-    return {word: i for i, word in enumerate(words_list)}
+    indice = [i for i in range(len(words_list))]
+    return dict(zip(words_list, indice))
 
 
 def sentence_to_embedding(sent, word_to_vec, seq_len, embedding_dim=300):
@@ -170,7 +224,18 @@ def sentence_to_embedding(sent, word_to_vec, seq_len, embedding_dim=300):
     :param embedding_dim: the dimension of the w2v embedding
     :return: numpy ndarray of shape (seq_len, embedding_dim) with the representation of the sentence
     """
-    return
+    mat = np.zeros(shape=(seq_len, embedding_dim))
+    i = 0
+    for word in sent.text:
+        if i >= seq_len:
+            break
+        try:
+            mat[i] = word_to_vec[word]
+        except:
+            pass
+        finally:
+            i += 1
+    return mat
 
 
 class OnlineDataset(Dataset):
@@ -276,9 +341,6 @@ class DataManager():
         """
         return self.torch_datasets[TRAIN][0][0].shape
 
-    def get_sents(self, data_subset=TRAIN):
-        return self.sentences[data_subset]
-
 
 # ------------------------------------ Models ----------------------------------------------------
 
@@ -288,13 +350,45 @@ class LSTM(nn.Module):
     """
 
     def __init__(self, embedding_dim, hidden_dim, n_layers, dropout):
-        return
+        super(LSTM, self).__init__()
+        self.hidden_size = hidden_dim
+        self.n_layers = n_layers
+        self.rnn = nn.LSTM(input_size=embedding_dim, hidden_size=hidden_dim, num_layers=n_layers,
+                           batch_first=True, dtype=torch.float64)
+        self.dropout = nn.Dropout(dropout)
+        self.linear = nn.Linear(2 * hidden_dim, 1, dtype=torch.float64)
 
     def forward(self, text):
-        return
+        # h0 = torch.zeros(self.n_layers * 2, text.shape[0], self.hidden_size, dtype=torch.float64)
+        # c0 = torch.zeros(self.n_layers * 2, text.shape[0], self.hidden_size, dtype=torch.float64)
+        # out, _ = self.rnn(text, (h0, c0))
+        # out = self.dropout(out)
+        # out = self.linear(out[:, -1, :])
+        # return out
+
+        h0 = torch.zeros(
+            self.n_layers, text.shape[0], self.hidden_size, dtype=torch.float64)
+        c0 = torch.zeros(
+            self.n_layers, text.shape[0], self.hidden_size, dtype=torch.float64)
+        h0_r = torch.zeros(
+            self.n_layers, text.shape[0], self.hidden_size, dtype=torch.float64)
+        c0_r = torch.zeros(
+            self.n_layers, text.shape[0], self.hidden_size, dtype=torch.float64)
+
+        out, _ = self.rnn(text, (h0, c0))
+        out_r, _ = self.rnn(torch.flip(text, [1]), (h0_r, c0_r))
+        out = out[:, -1, :]
+        out_r = out_r[:, -1, :]
+        out = torch.cat([out, out_r], dim=1)
+        out = self.dropout(out)
+        out = self.linear(out)
+        return out
 
     def predict(self, text):
-        return
+        return torch.sigmoid(self.forward(text))
+
+    def get_name(self):
+        return "LSTM"
 
 
 class LogLinear(nn.Module):
@@ -303,17 +397,17 @@ class LogLinear(nn.Module):
     """
 
     def __init__(self, embedding_dim):
-        super().__init__()
-
-        self.linear = nn.Linear(embedding_dim, 1)
-        self.sigmoid = torch.nn.Sigmoid()
+        super(LogLinear, self).__init__()
+        self.layer = nn.Linear(embedding_dim, 1, dtype=torch.float64)
 
     def forward(self, x):
-        return self.linear(x)
+        return self.layer(x)
 
     def predict(self, x):
-        with torch.no_grad():
-            return self.sigmoid(self(x))
+        return torch.sigmoid(self.forward(x))
+
+    def get_name(self):
+        return "LogLinear"
 
 
 # ------------------------- training functions -------------
@@ -323,13 +417,10 @@ def binary_accuracy(preds, y):
     """
     This method returns tha accuracy of the predictions, relative to the labels.
     You can choose whether to use numpy arrays or tensors here.
-    the function assumes the preds are after the sigmoid function and
-    therefore between 0-1.
     :param preds: a vector of predictions
     :param y: a vector of true labels
     :return: scalar value - (<number of accurate predictions> / <number of examples>)
     """
-
     return torch.sum(torch.round(preds) == y) / len(y)
 
 
@@ -342,19 +433,27 @@ def train_epoch(model, data_iterator, optimizer, criterion):
     :param optimizer: the optimizer object for the training process.
     :param criterion: the criterion object for the training process.
     """
+    epoch_loss, epoch_acc, epoch_size = 0, [], 0
+    size = len(data_iterator)
+    for batch, (batch_X, batch_y) in enumerate(data_iterator):
+        pred = model(batch_X)
+        y_shaped = batch_y.reshape(pred.shape)
+        loss, acc = criterion(pred, batch_y.reshape(
+            pred.shape)), binary_accuracy(torch.sigmoid(pred), y_shaped)
 
-    for xb, yb in data_iterator:
-
-        # calculate the gradients:
-        preds = model(xb).squeeze()
-        loss = criterion(preds, yb)
         optimizer.zero_grad()
         loss.backward()
-
-        # update the weights:
-
         optimizer.step()
-        optimizer.zero_grad()
+
+        epoch_loss += loss.item()
+        epoch_acc.append(acc.item())
+        epoch_size += len(batch_X)
+
+        if batch % 100 == 0:
+            loss, current = loss.item(), batch * len(batch_X)
+            print(f"loss: {loss:>7f}  [{current:>5d}/{size*len(batch_X):>5d}]")
+
+    return epoch_loss / epoch_size, np.average(epoch_acc)
 
 
 def evaluate(model, data_iterator, criterion):
@@ -365,15 +464,18 @@ def evaluate(model, data_iterator, criterion):
     :param criterion: the loss criterion used for evaluation
     :return: tuple of (average loss over all examples, average accuracy over all examples)
     """
+    epoch_loss, epoch_acc, epoch_size = 0, [], 0
+    for batch_X, batch_y in data_iterator:
+        pred_loss, pred_acc = model(batch_X), model.predict(batch_X)
+        y_shaped = batch_y.reshape(pred_loss.shape)
+        loss, acc = criterion(pred_loss, y_shaped), binary_accuracy(
+            pred_acc, y_shaped)
 
-    with torch.no_grad():
+        epoch_loss += loss.item()
+        epoch_acc.append(acc.item())
+        epoch_size += len(batch_X)
 
-        losses, accs = zip(*[(criterion(model(xb).squeeze(), yb).item(),
-                              binary_accuracy(model.predict(xb).squeeze(), yb))
-                             for xb, yb in data_iterator])
-
-        return round(torch.tensor(losses).mean().item(), 10), \
-            round(torch.tensor(accs).mean().item(), 10)
+    return epoch_loss / epoch_size, np.average(epoch_acc)
 
 
 def get_predictions_for_data(model, data_iter):
@@ -386,12 +488,33 @@ def get_predictions_for_data(model, data_iter):
     :param data_iter: torch iterator as given by the DataManager
     :return:
     """
+    tensors = []
+    for batch_X, batch_y in data_iter:
+        tensors.append(model.predict(batch_X))
+    return torch.cat(tensors)
 
-    with torch.no_grad():
-        return torch.cat([model.predict(xb).squeeze() for xb, _ in data_iter])
+
+def test_model(model, data_manager, title):
+    dataset = data_loader.SentimentTreeBank()
+    test_iter, test_labels = data_manager.get_torch_iterator(data_subset=TEST), \
+        data_manager.get_labels(data_subset=TEST)
+    test_sent = dataset.get_test_set()
+    negated_polarity_iter = data_loader.get_negated_polarity_examples(
+        test_sent)
+    rare_words_iter = data_loader.get_rare_words_examples(test_sent, dataset)
+    test_pred = get_predictions_for_data(model=model, data_iter=test_iter)
+    test_labels = torch.Tensor(test_labels).reshape(test_pred.shape)
+    print("TEST module %s:" % title)
+    print("All-Test accuracy: ", binary_accuracy(test_pred, test_labels))
+    print("All-Test loss: ", evaluate(model=model,
+          data_iterator=test_iter, criterion=nn.BCEWithLogitsLoss())[0])
+    print("Negated polarity test accuracy: ", binary_accuracy(
+        test_pred[negated_polarity_iter], test_labels[negated_polarity_iter]))
+    print("Rare words test accuracy: ", binary_accuracy(
+        test_pred[rare_words_iter], test_labels[rare_words_iter]))
 
 
-def train_model(model, data_manager, n_epochs, lr, weight_decay=0.):
+def train_model(model, data_manager, n_epochs, lr, weight_decay=0., analysis=PerformenceAnalysis(None)):
     """
     Runs the full training procedure for the given model. The optimization should be done using the Adam
     optimizer with all parameters but learning rate and weight decay set to default.
@@ -401,109 +524,41 @@ def train_model(model, data_manager, n_epochs, lr, weight_decay=0.):
     :param lr: learning rate to be used for optimization
     :param weight_decay: parameter for l2 regularization
     """
-
     optimizer = optim.Adam(model.parameters(), lr=lr,
                            weight_decay=weight_decay)
-
-    criterion = nn.BCEWithLogitsLoss()
-
-    train_losses, train_accs = torch.Tensor(n_epochs), torch.Tensor(n_epochs)
-    val_losses, val_accs = torch.Tensor(n_epochs), torch.Tensor(n_epochs)
-
+    criterion = nn.BCEWithLogitsLoss().to(device=get_available_device())
     for i in range(n_epochs):
+        start = time.time()
+        print(f"Epoch {i + 1}\n-------------------------------")
+        train_loss, train_acc = train_epoch(model=model, data_iterator=data_manager.get_torch_iterator(),
+                                            optimizer=optimizer, criterion=criterion)
+        analysis.append_train(train_loss, train_acc)
+        val_loss, val_acc = evaluate(model=model, data_iterator=data_manager.get_torch_iterator(data_subset=VAL),
+                                     criterion=criterion)
+        analysis.append_validation(val_loss, val_acc)
+        print("Total time: %.3f\n" % (time.time() - start))
 
-        train_epoch(model, data_manager.get_torch_iterator(
-            data_subset=TRAIN), optimizer, criterion)
-
-        train_losses[i], train_accs[i] = evaluate(model, data_manager.get_torch_iterator(
-            data_subset=TRAIN), criterion)
-
-        val_losses[i], val_accs[i] = evaluate(model, data_manager.get_torch_iterator(
-            data_subset=VAL), criterion)
-
-    return train_losses, train_accs, val_losses, val_accs
+    return analysis
 
 
-def train_log_linear_with_one_hot(batch_size, n_epochs, lr, weight_decay=0.):
+def train_log_linear_with_one_hot():
     """
     Here comes your code for training and evaluation of the log linear model with one hot representation.
     """
-    # Train the model:
-    dm = DataManager(data_type=ONEHOT_AVERAGE, batch_size=batch_size)
-    model = LogLinear(dm.get_input_shape()[0])
-    train_losses, train_accs, val_losses, val_accs = train_model(model=model, data_manager=dm,
-                                                                 n_epochs=n_epochs, lr=lr, weight_decay=weight_decay)
+    dm = DataManager(batch_size=64)
+    model = LogLinear(dm.get_input_shape()[0]).to(
+        device=get_available_device())
+    title = "Log Linear with one hot vector"
+    analysis = PerformenceAnalysis(title)
 
-    # Plot Train and Validation results:
-    res_units = ("Losses", "Accuracies")
-    train_results = (train_losses, train_accs)
-    val_results = (val_losses, val_accs)
-
-    fig, axs = plt.subplots(1, 2, figsize=(12, 6))
-
-    for train_res, val_res, res_unit, ax in zip(train_results, val_results, res_units, axs):
-        plot_loss_acc(train_res, val_res, res_unit, ax)
-
-    # Save the model:
-    save_pickle(model, "log_linear_one_hot_model.pkl")
-
-    # Print Test results:
-
-    return model
-
-
-def plot_loss_acc(train_res, val_res, res_unit, ax=None):
-
-    if ax is None:
-        ax = plt.subplots([1])
-    x_values = list(range(1, len(train_res)+1))
-
-    ax.plot(x_values, train_res,
-            label=f" Train {res_unit}")
-    ax.plot(x_values, val_res,
-            label=f" Validation {res_unit}")
-
-    ax.set_xlabel('Epochs')
-    ax.set_ylabel('Values')
-    ax.set_title(f"{res_unit} Results")
-
-    ax.legend()
-
-
-def print_results(model, dataset):
-
-    # compute test predictions:
-    logits = torch.cat([model(xb).squeeze()
-                       for xb, _ in dm.get_torch_iterator(data_subset=TEST)])
-    test_predicts = get_predictions_for_data(
-        model, dm.get_torch_iterator(data_subset=TEST))
-    # TODO: check if use function
-    y_true = torch.cat(
-        [yb for _, yb in dm.get_torch_iterator(data_subset=TEST)])
-
-    # compute overall test results:
-    test_loss, test_acc = round(nn.BCEWithLogitsLoss()(
-        logits, y_true).item(), 6), round(binary_accuracy(test_predicts, y_true).item(), 6)
-
-    print(f"Test Set loss is: {test_loss}")
-    print(f"Test Set accuracy is: {test_acc}")
-
-    # compute special subsets accuracy:
-    test_sents_objects = dm.get_sents(data_subset=TEST)
-
-    polar_indexes = data_loader.get_negated_polarity_examples(
-        test_sents_objects)
-    rare_words_indexes = data_loader.get_rare_words_examples(
-        test_sents_objects, dataset)
-
-    polar_test_acc = round(binary_accuracy(
-        test_predicts[polar_indexes], y_true[[polar_indexes]]).item(), 6)
-    rare_word_acc = round(binary_accuracy(
-        test_predicts[rare_words_indexes], y_true[[rare_words_indexes]]).item(), 6)
-
-    print("Accuracies for the special subsets:")
-    print(f"Negated polarity examples accuracy is: {polar_test_acc}")
-    print(f"Rare words examples accuracy is: {rare_word_acc}")
+    print("=========================== START %s =============================" % title)
+    train_model(model=model, data_manager=dm, n_epochs=20,
+                lr=0.01, weight_decay=0.001, analysis=analysis)
+    save_pickle(model, "%s.pkl" % title.replace(" ", "_"))
+    analysis.plot_loss()
+    analysis.plot_accuracy()
+    test_model(model=model, data_manager=dm, title=title)
+    print("=========================== END %s =============================" % title)
 
 
 def train_log_linear_with_w2v():
@@ -511,26 +566,44 @@ def train_log_linear_with_w2v():
     Here comes your code for training and evaluation of the log linear model with word embeddings
     representation.
     """
-    return
+    dm = DataManager(data_type=W2V_AVERAGE, batch_size=64,
+                     embedding_dim=W2V_EMBEDDING_DIM)
+    model = LogLinear(W2V_EMBEDDING_DIM).to(device=get_available_device())
+    title = "Log Linear with W2V"
+    analysis = PerformenceAnalysis(title)
+
+    print("=========================== START %s =============================" % title)
+    train_model(model=model, data_manager=dm, n_epochs=20,
+                lr=0.01, weight_decay=0.001, analysis=analysis)
+    save_pickle(model, "%s.pkl" % title.replace(" ", "_"))
+    analysis.plot_loss()
+    analysis.plot_accuracy()
+    test_model(model=model, data_manager=dm, title=title)
+    print("=========================== END %s =============================" % title)
 
 
 def train_lstm_with_w2v():
     """
     Here comes your code for training and evaluation of the LSTM model.
     """
-    return
+    dm = DataManager(data_type=W2V_SEQUENCE, batch_size=64,
+                     embedding_dim=W2V_EMBEDDING_DIM)
+    model = LSTM(embedding_dim=W2V_EMBEDDING_DIM, hidden_dim=100,
+                 n_layers=1, dropout=0.5).to(device=get_available_device())
+    title = "LSTM with W2V"
+    analysis = PerformenceAnalysis(title)
+
+    print("=========================== START %s =============================" % title)
+    train_model(model=model, data_manager=dm, n_epochs=4,
+                lr=0.001, weight_decay=0.0001, analysis=analysis)
+    save_pickle(model, "%s.pkl" % title.replace(" ", "_"))
+    analysis.plot_loss()
+    analysis.plot_accuracy()
+    test_model(model=model, data_manager=dm, title=title)
+    print("=========================== END %s =============================" % title)
 
 
 if __name__ == '__main__':
-
-    dataset = data_loader.SentimentTreeBank()
-
-    model = train_log_linear_with_one_hot(
-        batch_size=64, n_epochs=20, lr=0.01, weight_decay=0.001)
-
-    dm = DataManager(data_type=ONEHOT_AVERAGE, batch_size=64)
-
-    print_results(model, dataset)
-
+    train_log_linear_with_one_hot()
     # train_log_linear_with_w2v()
     # train_lstm_with_w2v()
