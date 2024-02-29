@@ -116,7 +116,15 @@ def get_w2v_average(sent, word_to_vec, embedding_dim):
     :param embedding_dim: the dimension of the word embedding vectors
     :return The average embedding vector as numpy ndarray.
     """
-    return
+    res = torch.zeros(embedding_dim)
+
+    for word in sent.text:
+
+        if word in word_to_vec.keys():
+
+            res += word_to_vec[word]
+
+    return res/len(sent.text)
 
 
 def get_one_hot(size, ind):
@@ -230,6 +238,7 @@ class DataManager():
 
         # map data splits to sentence input preperation functions
         words_list = list(self.sentiment_dataset.get_word_counts().keys())
+
         if data_type == ONEHOT_AVERAGE:
             self.sent_func = average_one_hots
             self.sent_func_kwargs = {
@@ -421,35 +430,8 @@ def train_model(model, data_manager, n_epochs, lr, weight_decay=0.):
         val_losses[i], val_accs[i] = evaluate(model, data_manager.get_torch_iterator(
             data_subset=VAL), criterion)
 
-    return train_losses, train_accs, val_losses, val_accs
-
-
-def train_log_linear_with_one_hot(batch_size, n_epochs, lr, weight_decay=0.):
-    """
-    Here comes your code for training and evaluation of the log linear model with one hot representation.
-    """
-    # Train the model:
-    dm = DataManager(data_type=ONEHOT_AVERAGE, batch_size=batch_size)
-    model = LogLinear(dm.get_input_shape()[0])
-    train_losses, train_accs, val_losses, val_accs = train_model(model=model, data_manager=dm,
-                                                                 n_epochs=n_epochs, lr=lr, weight_decay=weight_decay)
-
-    # Plot Train and Validation results:
-    res_units = ("Losses", "Accuracies")
-    train_results = (train_losses, train_accs)
-    val_results = (val_losses, val_accs)
-
-    fig, axs = plt.subplots(1, 2, figsize=(12, 6))
-
-    for train_res, val_res, res_unit, ax in zip(train_results, val_results, res_units, axs):
-        plot_loss_acc(train_res, val_res, res_unit, ax)
-
-    # Save the model:
-    save_pickle(model, "log_linear_one_hot_model.pkl")
-
-    # Print Test results:
-
-    return model
+    plot_results(train_losses, train_accs, val_losses, val_accs)
+    return
 
 
 def plot_loss_acc(train_res, val_res, res_unit, ax=None):
@@ -470,7 +452,19 @@ def plot_loss_acc(train_res, val_res, res_unit, ax=None):
     ax.legend()
 
 
-def print_results(model, dataset):
+def plot_results(train_losses, train_accs, val_losses, val_accs):
+    # Plot Train and Validation results:
+    res_units = ("Losses", "Accuracies")
+    train_results = (train_losses, train_accs)
+    val_results = (val_losses, val_accs)
+
+    fig, axs = plt.subplots(1, 2, figsize=(12, 6))
+
+    for train_res, val_res, res_unit, ax in zip(train_results, val_results, res_units, axs):
+        plot_loss_acc(train_res, val_res, res_unit, ax)
+
+
+def print_results(model, dataset, dm):
 
     # compute test predictions:
     logits = torch.cat([model(xb).squeeze()
@@ -506,12 +500,38 @@ def print_results(model, dataset):
     print(f"Rare words examples accuracy is: {rare_word_acc}")
 
 
-def train_log_linear_with_w2v():
+def train_log_linear_with_one_hot(batch_size, n_epochs, lr, weight_decay=0.):
+    """
+    Here comes your code for training and evaluation of the log linear model with one hot representation.
+    """
+    # Train the model:
+    dm = DataManager(data_type=ONEHOT_AVERAGE, batch_size=batch_size)
+    model = LogLinear(dm.get_input_shape()[0])
+    train_model(model=model, data_manager=dm, n_epochs=n_epochs,
+                lr=lr, weight_decay=weight_decay)
+
+    # Save the model:
+    save_pickle(model, "log_linear_one_hot_model.pkl")
+
+    return model
+
+
+def train_log_linear_with_w2v(batch_size, n_epochs, lr, weight_decay=0.):
     """
     Here comes your code for training and evaluation of the log linear model with word embeddings
     representation.
     """
-    return
+    dm = DataManager(data_type=W2V_AVERAGE, batch_size=batch_size,
+                     embedding_dim=W2V_EMBEDDING_DIM)
+
+    model = LogLinear(dm.get_input_shape()[0])
+    train_model(model=model, data_manager=dm, n_epochs=n_epochs,
+                lr=lr, weight_decay=weight_decay)
+
+    # Save the model:
+    save_pickle(model, "log_linear_with_w2v_model.pkl")
+
+    return model
 
 
 def train_lstm_with_w2v():
@@ -524,13 +544,17 @@ def train_lstm_with_w2v():
 if __name__ == '__main__':
 
     dataset = data_loader.SentimentTreeBank()
+    # TODO: change to pickle:
+    # TODO: add doc to train_log_linear
+    # model = train_log_linear_with_one_hot(
+    #     batch_size=64, n_epochs=20, lr=0.01, weight_decay=0.001)
 
-    model = train_log_linear_with_one_hot(
+    model = train_log_linear_with_w2v(
         batch_size=64, n_epochs=20, lr=0.01, weight_decay=0.001)
 
-    dm = DataManager(data_type=ONEHOT_AVERAGE, batch_size=64)
+    # dm = DataManager(data_type=ONEHOT_AVERAGE, batch_size=64)
 
-    print_results(model, dataset)
+    # print_results(model, dataset, dm)
 
     # train_log_linear_with_w2v()
     # train_lstm_with_w2v()
