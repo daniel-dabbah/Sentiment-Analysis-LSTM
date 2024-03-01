@@ -14,5 +14,6 @@ We already used this function to evaulate the validation data, and therefore I p
 
 2. In DataManager class, I added a getter function named get_sents in order to return the sents objects of the desired dataset.
 
-3. I decided the the train_log_linear_with_one_hot, 
+3. I decided the the train_log_linear_with_one_hot, train_log_linear_with_w2v
+ will receive the training paramters (such as lr) as a paramters to the function.
 """

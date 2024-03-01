@@ -178,7 +178,14 @@ def sentence_to_embedding(sent, word_to_vec, seq_len, embedding_dim=300):
     :param embedding_dim: the dimension of the w2v embedding
     :return: numpy ndarray of shape (seq_len, embedding_dim) with the representation of the sentence
     """
-    return
+    sent_len = len(sent.text)
+
+    def get_embedding(word):
+        return word_to_vec[word] if word in word_to_vec.keys() else np.zeros(embedding_dim)
+
+    return torch.tensor(np.stack([get_embedding(sent.text[i]) if i < sent_len
+                                  else np.zeros(embedding_dim)
+                                  for i in range(seq_len)]))
 
 
 class OnlineDataset(Dataset):
@@ -297,13 +304,38 @@ class LSTM(nn.Module):
     """
 
     def __init__(self, embedding_dim, hidden_dim, n_layers, dropout):
-        return
+
+        super().__init__()
+
+        self.n_layers = n_layers
+        self.hidden_dim = hidden_dim
+
+        self.rnn = nn.LSTM(embedding_dim, hidden_dim, n_layers, batch_first=True,
+                           dropout=dropout, dtype=torch.float64)
+        self.linear = nn.Linear(hidden_dim * 2, 1, dtype=torch.float64)
+        self.sigmoid = torch.nn.Sigmoid()
 
     def forward(self, text):
-        return
+
+        h0 = torch.zeros(
+            self.n_layers, text.shape[0], self.hidden_dim, dtype=torch.float64)
+        c0 = torch.zeros(
+            self.n_layers, text.shape[0], self.hidden_dim, dtype=torch.float64)
+        h0_r = torch.zeros(
+            self.n_layers, text.shape[0], self.hidden_dim, dtype=torch.float64)
+        c0_r = torch.zeros(
+            self.n_layers, text.shape[0], self.hidden_dim, dtype=torch.float64)
+
+        out, _ = self.rnn(text, (h0, c0))
+        out_r, _ = self.rnn(torch.flip(text, [1]), (h0_r, c0_r))
+
+        out = torch.cat([out[:, -1, :], out_r[:, -1, :]], dim=1)
+
+        return self.linear(out)
 
     def predict(self, text):
-        return
+        with torch.no_grad():
+            return self.sigmoid(self(text))
 
 
 class LogLinear(nn.Module):
@@ -339,7 +371,7 @@ def binary_accuracy(preds, y):
     :return: scalar value - (<number of accurate predictions> / <number of examples>)
     """
 
-    return torch.sum(torch.round(preds) == y) / len(y)
+    return (torch.sum(torch.round(preds) == y) / len(y)) * 100
 
 
 def train_epoch(model, data_iterator, optimizer, criterion):
@@ -479,11 +511,28 @@ def train_log_linear_with_w2v(batch_size, n_epochs, lr, weight_decay=0.):
     return model
 
 
-def train_lstm_with_w2v():
+def train_lstm_with_w2v(batch_size, n_epochs, lr, weight_decay=0.):
     """
     Here comes your code for training and evaluation of the LSTM model.
     """
-    return
+
+    model_path = "LSTM_model.pkl"
+    model_name = "LSTM"
+
+    dm = DataManager(data_type=W2V_SEQUENCE,
+                     batch_size=batch_size, embedding_dim=W2V_EMBEDDING_DIM)
+
+    model = LSTM(embedding_dim=W2V_EMBEDDING_DIM,
+                 hidden_dim=100, n_layers=1, dropout=0.5)
+
+    train_model(model=model, data_manager=dm, n_epochs=n_epochs,
+                lr=lr, weight_decay=weight_decay)
+
+    save_pickle(model, model_path)
+
+    print_results(model, dm, model_name)
+
+    return model
 
 
 def plot_loss_acc(train_res, val_res, res_unit, ax=None):
@@ -534,7 +583,7 @@ def print_results(model, dm, model_name):
 
     print(f"Results for the {model_name} Model: ")
     print(f"Test Set loss is: {test_loss}")
-    print(f"Test Set accuracy is: {test_acc}")
+    print(f"Test Set accuracy is: {test_acc}%")
 
     # compute special subsets accuracy:
     test_sents_objects = dm.get_sents(data_subset=TEST)
@@ -550,16 +599,25 @@ def print_results(model, dm, model_name):
         test_predicts[rare_words_indexes], y_true[[rare_words_indexes]]).item(), 6)
 
     print("Accuracies for the special subsets:")
-    print(f"Negated polarity examples accuracy is: {polar_test_acc}")
-    print(f"Rare words examples accuracy is: {rare_word_acc}\n")
+    print(f"Negated polarity examples accuracy is: {polar_test_acc}%")
+    print(f"Rare words examples accuracy is: {rare_word_acc}%\n")
 
 
 if __name__ == '__main__':
 
-    train_log_linear_with_one_hot(
-        batch_size=64, n_epochs=1, lr=0.01, weight_decay=0.001)
+    # train_log_linear_with_one_hot(
+    #     batch_size=64, n_epochs=20, lr=0.01, weight_decay=0.001)
 
     train_log_linear_with_w2v(
-        batch_size=64, n_epochs=1, lr=0.01, weight_decay=0.001)
+        batch_size=64, n_epochs=20, lr=0.01, weight_decay=0.001)
 
-    # train_lstm_with_w2v()
+    # train_lstm_with_w2v(batch_size=64, n_epochs=4,
+    #                     lr=.001, weight_decay=0.0001)
+
+    """
+    TODO: 
+        1. add docstring
+        2. deal with magic numbers.
+        
+        
+    """
