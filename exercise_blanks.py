@@ -310,8 +310,10 @@ class LSTM(nn.Module):
         self.n_layers = n_layers
         self.hidden_dim = hidden_dim
 
-        self.rnn = nn.LSTM(embedding_dim, hidden_dim, n_layers, batch_first=True,
-                           dtype=torch.float64)
+        self.rnn = nn.LSTM(embedding_dim, hidden_dim, n_layers,
+                           batch_first=True, dtype=torch.float64)
+        self.rnn2 = nn.LSTM(embedding_dim, hidden_dim, n_layers, bidirectional=True,
+                            batch_first=True, dtype=torch.float64)
         self.linear = nn.Linear(hidden_dim * 2, 1, dtype=torch.float64)
         self.sigmoid = torch.nn.Sigmoid()
         self.dropout = nn.Dropout(dropout)
@@ -331,6 +333,10 @@ class LSTM(nn.Module):
         out_r, _ = self.rnn(torch.flip(text, [1]), (h0_r, c0_r))
 
         out = torch.cat([out[:, -1, :], out_r[:, -1, :]], dim=1)
+
+        # _, (h, _) = self.rnn2(text)
+        # # print(h[1].size())
+        # out = torch.cat((h[0], h[1]), dim=-1)
 
         return self.linear(self.dropout(out))
 
@@ -539,7 +545,7 @@ def train_lstm_with_w2v(batch_size, n_epochs, lr, weight_decay=0.):
 def plot_loss_acc(train_res, val_res, res_unit, ax=None):
 
     if ax is None:
-        ax = plt.subplots([1])
+        ax = plt.subplots()[1]
     x_values = list(range(1, len(train_res)+1))
 
     ax.plot(x_values, train_res,
@@ -606,13 +612,13 @@ def print_results(model, dm, model_name):
 
 if __name__ == '__main__':
 
-    train_log_linear_with_one_hot(
-        batch_size=64, n_epochs=20, lr=0.01, weight_decay=0.001)
+    # train_log_linear_with_one_hot(
+    #     batch_size=64, n_epochs=20, lr=0.01, weight_decay=0.001)
 
-    train_log_linear_with_w2v(
-        batch_size=64, n_epochs=20, lr=0.01, weight_decay=0.001)
+    # train_log_linear_with_w2v(
+    #     batch_size=64, n_epochs=20, lr=0.01, weight_decay=0.001)
 
-    train_lstm_with_w2v(batch_size=64, n_epochs=4,
+    train_lstm_with_w2v(batch_size=64, n_epochs=1,
                         lr=.001, weight_decay=0.0001)
 
     """
