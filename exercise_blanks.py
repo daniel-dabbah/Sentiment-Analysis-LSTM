@@ -694,13 +694,12 @@ if __name__ == "__main__":
     # # train_log_linear_with_w2v(
     # #     batch_size=64, n_epochs=20, lr=0.01, weight_decay=0.001)
 
-    train_lstm_with_w2v(batch_size=64, n_epochs=1,
+    train_lstm_with_w2v(batch_size=64, n_epochs=4,
                         lr=.001, weight_decay=0.0001)
 
     """
     TODO: 
         1. add docstring
         2. deal with magic numbers.
-        3. improve lstm class
         4. check other to do
     """
