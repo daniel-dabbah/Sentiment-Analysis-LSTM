@@ -5,5 +5,5 @@ Developed and implemented training code from scratch to create multiple models, 
 comparisons for enhanced performance evaluation.
   
   
-![photo](senetiment analysis photo.jpeg)
+![senetiment analysis photo](senetiment analysis photo.jpeg)
 
