@@ -29,12 +29,7 @@ TEST = "test"
 
 
 def get_available_device():
-    """
-    Allows training on GPU if available. Can help with running things faster when a GPU with cuda is
-    available but not a most...
-    Given a device, one can use module.to(device)
-    and criterion.to(device) so that all the computations will be done on the GPU.
-    """
+
     return torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
@@ -67,7 +62,7 @@ def save_model(model, path, epoch, optimizer):
 
 def load(model, path, optimizer):
     """
-    Loads the state (weights, paramters...) of a model which was saved with save_model
+    Loads the state (weights, paramters...) of a model which was saved with save_model 
     :param model: should be the same model as the one which was saved in the path
     :param path: path to the saved checkpoint
     :param optimizer: should be the same optimizer as the one which was saved in the path
@@ -335,7 +330,7 @@ class DataManager:
 
 class LSTM(nn.Module):
     """
-    An LSTM for sentiment analysis with architecture as described in the exercise description.
+    A bidirectional LSTM for sentiment analysis.
     """
 
     def __init__(self, embedding_dim, hidden_dim, n_layers, dropout):
@@ -456,7 +451,7 @@ def get_predictions_for_data(model, data_iter):
     This function should iterate over all batches of examples from data_iter and return all of the models
     predictions as a numpy ndarray or torch tensor (or list if you prefer). the prediction should be in the
     same order of the examples returned by data_iter.
-    :param model: one of the models you implemented in the exercise
+    :param model: one of implemented models.
     :param data_iter: torch iterator as given by the DataManager
     :return:
     """
@@ -469,8 +464,7 @@ def train_model(model, data_manager, n_epochs, lr, weight_decay=0.0):
     """
     Runs the full training procedure for the given model. The optimization should be done using the Adam
     optimizer with all parameters but learning rate and weight decay set to default.
-    :param model: module of one of the models implemented in the exercise
-    :param data_manager: the DataManager object
+    :param model: module of one of the implemented models  
     :param n_epochs: number of times to go over the whole training set
     :param lr: learning rate to be used for optimization
     :param weight_decay: parameter for l2 regularization
@@ -509,7 +503,7 @@ def train_model(model, data_manager, n_epochs, lr, weight_decay=0.0):
 
 def train_log_linear_with_one_hot(batch_size, n_epochs, lr, weight_decay=0.0):
     """
-    Here comes your code for training and evaluation of the log linear model with one hot representation.
+    Training and evaluation of the log linear model with one hot representation.
     """
     # Train the model:
 
@@ -525,10 +519,8 @@ def train_log_linear_with_one_hot(batch_size, n_epochs, lr, weight_decay=0.0):
         weight_decay=weight_decay,
     )
 
-    # Save the model:
     save_pickle(model, model_path)
 
-    # print results:
     print_results(model, dm, model_name)
 
     return model
@@ -536,7 +528,7 @@ def train_log_linear_with_one_hot(batch_size, n_epochs, lr, weight_decay=0.0):
 
 def train_log_linear_with_w2v(batch_size, n_epochs, lr, weight_decay=0.0):
     """
-    Here comes your code for training and evaluation of the log linear model with word embeddings
+    Training and evaluation of the log linear model with word embeddings
     representation.
     """
 
@@ -565,9 +557,9 @@ def train_log_linear_with_w2v(batch_size, n_epochs, lr, weight_decay=0.0):
     return model
 
 
-def train_lstm_with_w2v(batch_size, n_epochs, lr, weight_decay=0.0):
+def train_lstm_with_w2v(batch_size, n_epochs, lr,  hidden_dim, n_layers, dropout, weight_decay=0.0):
     """
-    Here comes your code for training and evaluation of the LSTM model.
+    Training and evaluation of the LSTM model.
     """
 
     model_path = "LSTM_model.pkl"
@@ -581,9 +573,9 @@ def train_lstm_with_w2v(batch_size, n_epochs, lr, weight_decay=0.0):
 
     model = LSTM(
         embedding_dim=W2V_EMBEDDING_DIM,
-        hidden_dim=100,
-        n_layers=1,
-        dropout=0.5,
+        hidden_dim=hidden_dim,
+        n_layers=n_layers,
+        dropout=dropout,
     )
 
     train_model(
@@ -687,19 +679,26 @@ def print_results(model, dm, model_name):
 
 if __name__ == "__main__":
 
-    # train_log_linear_with_one_hot(
-    #     batch_size=64, n_epochs=20, lr=0.01, weight_decay=0.001
-    # )
+    # hyper_parameters:
 
-    # # train_log_linear_with_w2v(
-    # #     batch_size=64, n_epochs=20, lr=0.01, weight_decay=0.001)
+    batch_size = 64
+    n_epochs = 20
+    lr = 0.01
+    weight_decay = 0.001
 
-    train_lstm_with_w2v(batch_size=64, n_epochs=4,
-                        lr=.001, weight_decay=0.0001)
+    train_log_linear_with_one_hot(
+        batch_size=batch_size, n_epochs=n_epochs, lr=lr, weight_decay=weight_decay
+    )
+
+    train_log_linear_with_w2v(
+        batch_size=batch_size, n_epochs=n_epochs, lr=lr, weight_decay=weight_decay)
+
+    train_lstm_with_w2v(batch_size=64, n_epochs=4, lr=.001,
+                        weight_decay=0.0001, hidden_dim=100, n_layers=1,
+                        dropout=0.5)
 
     """
     TODO: 
-        1. add docstring
-        2. deal with magic numbers.
-        4. check other to do
+        1. split to diffrent models
+        4. imporve functios
     """
